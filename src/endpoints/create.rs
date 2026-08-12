@@ -17,6 +17,7 @@ use log::warn;
 use rand::Rng;
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::cmp;
 
 #[derive(Template)]
 #[template(path = "index.html")]
@@ -121,8 +122,21 @@ pub async fn create(
         }
     } as i64;
 
+
+    let id = {
+        let pastas = data.pastas.lock().unwrap();
+        let min_id = cmp::max((pastas.len() as u64) * 1024u64, 256u64);
+        let max_id = cmp::min(min_id, 9_007_199_254_740_991u64);
+        let mut new_id = rand::thread_rng().gen_range(0..=max_id);
+        while pastas.iter().any(|p| p.id == new_id) {
+            new_id = rand::thread_rng().gen_range(0..=max_id);
+        }
+        new_id
+    };
+
+
     let mut new_pasta = Pasta {
-        id: rand::thread_rng().gen::<u16>() as u64,
+        id: id,
         content: String::from(""),
         file: None,
         extension: String::from(""),
@@ -330,8 +344,6 @@ pub async fn create(
                 .finish());
         }
     }
-
-    let id = new_pasta.id;
 
     if plain_key != *"" && new_pasta.readonly {
         new_pasta.encrypted_key = Some(encrypt(id.to_string().as_str(), &plain_key));
